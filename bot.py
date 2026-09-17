@@ -4,17 +4,13 @@ import hashlib
 import json
 import logging
 import os
-import re
 import time
 import urllib.error
 import urllib.request
 from typing import Any
 
-from markdown_converter import convert_markdown
-
 
 LOG = logging.getLogger("telegram-markdown-bot")
-LEGACY_COMMAND = re.compile(r"^/legacy(?:@[A-Za-z0-9_]+)?(?:\s+([\s\S]*))?$")
 
 
 class TelegramError(Exception):
@@ -82,25 +78,25 @@ class TelegramBot:
             )
         return result["result"]
 
-    def send_text(
-        self, message: dict[str, Any], text: str, parse_mode: str | None = None
-    ) -> None:
+    def send_text(self, message: dict[str, Any], text: str) -> None:
         payload: dict[str, Any] = {
             "chat_id": message["chat"]["id"],
             "text": text,
             "reply_parameters": {"message_id": message["message_id"]},
         }
-        if parse_mode:
-            payload["parse_mode"] = parse_mode
         if thread_id := message.get("message_thread_id"):
             payload["message_thread_id"] = thread_id
         self.request("sendMessage", payload)
 
     def send_markdown(self, message: dict[str, Any]) -> None:
-        self.send_text(message, convert_markdown(message["text"]), "MarkdownV2")
-
-    def send_legacy(self, message: dict[str, Any], text: str) -> None:
-        self.send_text(message, text, "Markdown")
+        payload: dict[str, Any] = {
+            "chat_id": message["chat"]["id"],
+            "rich_message": {"markdown": message["text"]},
+            "reply_parameters": {"message_id": message["message_id"]},
+        }
+        if thread_id := message.get("message_thread_id"):
+            payload["message_thread_id"] = thread_id
+        self.request("sendRichMessage", payload)
 
     def send_error(self, message: dict[str, Any], description: str) -> None:
         self.send_text(message, f"Markdown 解析失败：{description}")
@@ -116,8 +112,7 @@ class TelegramBot:
                     "title": "发送 Markdown",
                     "description": query[:100],
                     "input_message_content": {
-                        "message_text": convert_markdown(query),
-                        "parse_mode": "MarkdownV2",
+                        "rich_message": {"markdown": query},
                     },
                 }
             )
@@ -160,20 +155,7 @@ def handle_update(bot: TelegramBot, update: dict[str, Any]) -> None:
         return
 
     try:
-        legacy_match = LEGACY_COMMAND.fullmatch(message["text"])
-        if legacy_match:
-            legacy_text = legacy_match.group(1)
-            if legacy_text is None:
-                legacy_text = message.get("reply_to_message", {}).get("text")
-            if legacy_text:
-                bot.send_legacy(message, legacy_text)
-            else:
-                bot.send_text(
-                    message,
-                    "用法：/legacy <Markdown>，或回复一条文本后发送 /legacy",
-                )
-        else:
-            bot.send_markdown(message)
+        bot.send_markdown(message)
     except TelegramError as error:
         if error.retryable:
             raise
@@ -181,7 +163,12 @@ def handle_update(bot: TelegramBot, update: dict[str, Any]) -> None:
         description = str(error).lower()
         formatting_error = any(
             text in description
-            for text in ("can't parse entities", "entity url", "wrong http url")
+            for text in (
+                "can't parse",
+                "failed to parse",
+                "entity url",
+                "wrong http url",
+            )
         )
         if not formatting_error:
             return
