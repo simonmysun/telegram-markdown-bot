@@ -3,7 +3,7 @@ from unittest.mock import ANY, Mock, patch
 
 import urllib.request
 
-from bot import TelegramBot, TelegramError, handle_update
+from bot import TelegramBot, TelegramError, handle_update, process_update
 
 
 class TelegramBotTest(unittest.TestCase):
@@ -54,7 +54,7 @@ class TelegramBotTest(unittest.TestCase):
         payload = bot.request.call_args.args[1]
         self.assertEqual(payload["message_thread_id"], 11)
 
-    def test_answers_inline_query_with_rich_markdown(self) -> None:
+    def test_answers_inline_query_with_compatible_html(self) -> None:
         bot = TelegramBot("token")
         bot.request = Mock()
 
@@ -70,10 +70,11 @@ class TelegramBotTest(unittest.TestCase):
                     {
                         "type": "article",
                         "id": ANY,
-                        "title": "发送 Markdown",
+                        "title": "发送 Markdown（兼容模式）",
                         "description": "# Title!",
                         "input_message_content": {
-                            "rich_message": {"markdown": "# Title!"},
+                            "message_text": "<b>Title!</b>",
+                            "parse_mode": "HTML",
                         },
                     }
                 ],
@@ -173,6 +174,40 @@ class HandleUpdateTest(unittest.TestCase):
                 "is_personal": True,
             },
         )
+
+
+class ProcessUpdateTest(unittest.TestCase):
+    def test_skips_expired_inline_query(self) -> None:
+        bot = Mock()
+        bot.allowed_users = None
+        bot.answer_inline_query.side_effect = TelegramError(
+            "Bad Request: query is too old and response timeout expired "
+            "or query ID is invalid",
+            error_code=400,
+        )
+        update = {
+            "update_id": 17,
+            "inline_query": {"id": "expired", "query": "# Example"},
+        }
+
+        with self.assertLogs("telegram-markdown-bot", level="WARNING") as logs:
+            process_update(bot, update)
+
+        self.assertIn("Skipping update 17", logs.output[0])
+
+    def test_propagates_retryable_inline_query_error(self) -> None:
+        bot = Mock()
+        bot.allowed_users = None
+        bot.answer_inline_query.side_effect = TelegramError(
+            "Too Many Requests", retry_after=3, error_code=429, retryable=True
+        )
+        update = {
+            "update_id": 18,
+            "inline_query": {"id": "rate-limited", "query": "# Example"},
+        }
+
+        with self.assertRaises(TelegramError):
+            process_update(bot, update)
 
 
 if __name__ == "__main__":

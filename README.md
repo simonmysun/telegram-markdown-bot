@@ -80,13 +80,22 @@ docker compose down
 Rich Message 最多可包含 32768 个 UTF-8 字符、500 个块和 16 层嵌套。完整语法及限制见
 [Rich Message Formatting Options](https://core.telegram.org/bots/api#rich-message-formatting-options)。图片、贴纸等非文本输入消息会被忽略。
 
+`examples/` 中提供覆盖上述高级结构的完整语法参考：
+
+- [Rich Markdown 示例](examples/rich-markdown.md)。
+- [Rich HTML 示例](examples/rich-html.html)：对应 `InputRichMessage.html` 的完整 API 语法参考。
+
+这些文件包含 Telegram 文档中的占位媒体 URL，以及仅适用于特定聊天或 Bot 配置的按钮。它们用于查阅和测试语法覆盖，不保证整份直接发送成功；实际使用时应替换媒体 URL，并只保留当前上下文支持的按钮。
+
 ## Inline Mode
 
 1. 在 [@BotFather](https://t.me/BotFather) 中选择 `/setinline`，为 Bot 设置占位提示。
 2. 在任意聊天的输入框中输入 `@bot_username Markdown 内容`。
-3. 选择“发送 Markdown”结果，将转换后的消息发送到当前聊天。
+3. 选择“发送 Markdown（兼容模式）”结果，将格式化内容发送到当前聊天。
 
-Inline Mode 使用 `InputRichMessageContent`，与普通消息采用相同的 Rich Markdown 规则。Telegram 将 Inline Query 的输入限制为 256 个字符；空输入和非白名单用户不会显示结果。
+Telegram Android 目前无法可靠地从 Inline Mode 发送 `InputRichMessageContent`，选择结果后可能不发送消息。因此 Inline Mode 会把 Markdown 转换成普通 Telegram HTML，再通过兼容所有客户端的 `InputTextMessageContent` 发送。兼容模式支持标题、粗体、斜体、删除线、剧透、链接、代码、引用和基础列表；完整 Rich Markdown 的表格、媒体和高级块仅用于直接发送给 Bot 的消息。
+
+Telegram 将 Inline Query 的输入固定限制为 256 个字符，Bot 无法收到或恢复超出的部分。较长内容必须直接发送给 Bot。空输入和非白名单用户不会显示结果。
 
 ## 测试
 

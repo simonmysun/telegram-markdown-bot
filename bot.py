@@ -9,6 +9,8 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from markdown_converter import convert_markdown_to_html
+
 
 LOG = logging.getLogger("telegram-markdown-bot")
 
@@ -109,10 +111,11 @@ class TelegramBot:
                 {
                     "type": "article",
                     "id": hashlib.sha256(query.encode()).hexdigest(),
-                    "title": "发送 Markdown",
+                    "title": "发送 Markdown（兼容模式）",
                     "description": query[:100],
                     "input_message_content": {
-                        "rich_message": {"markdown": query},
+                        "message_text": convert_markdown_to_html(query),
+                        "parse_mode": "HTML",
                     },
                 }
             )
@@ -178,6 +181,15 @@ def handle_update(bot: TelegramBot, update: dict[str, Any]) -> None:
             LOG.error("Could not send error response: %s", send_error)
 
 
+def process_update(bot: TelegramBot, update: dict[str, Any]) -> None:
+    try:
+        handle_update(bot, update)
+    except TelegramError as error:
+        if error.retryable:
+            raise
+        LOG.warning("Skipping update %s: %s", update.get("update_id"), error)
+
+
 def run(bot: TelegramBot) -> None:
     bot_user = bot.request("getMe")
     LOG.info("Running as @%s", bot_user.get("username"))
@@ -196,7 +208,7 @@ def run(bot: TelegramBot) -> None:
                 payload,
             )
             for update in updates:
-                handle_update(bot, update)
+                process_update(bot, update)
                 offset = update["update_id"] + 1
         except TelegramError as error:
             delay = error.retry_after or 3
