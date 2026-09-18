@@ -82,10 +82,11 @@ Rich Message 最多可包含 32768 个 UTF-8 字符、500 个块和 16 层嵌套
 
 `examples/` 中提供覆盖上述高级结构的完整语法参考：
 
-- [Rich Markdown 示例](examples/rich-markdown.md)。
+- [Inline Markdown 示例](examples/inline-markdown.md)：不超过 256 个字符，可直接粘贴到 Inline Mode。
+- [Rich Markdown 示例](examples/rich-markdown.md)：可直接发送给 Bot。
 - [Rich HTML 示例](examples/rich-html.html)：对应 `InputRichMessage.html` 的完整 API 语法参考。
 
-这些文件包含 Telegram 文档中的占位媒体 URL，以及仅适用于特定聊天或 Bot 配置的按钮。它们用于查阅和测试语法覆盖，不保证整份直接发送成功；实际使用时应替换媒体 URL，并只保留当前上下文支持的按钮。
+为避免示例本身触发 `RICH_MESSAGE_PHOTO_URL_INVALID` 或 `BUTTON_TYPE_INVALID`，Rich 示例不包含占位媒体 URL、Custom Emoji 和依赖额外 Bot 配置或聊天上下文的按钮。
 
 ## Inline Mode
 

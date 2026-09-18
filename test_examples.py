@@ -4,10 +4,12 @@ from pathlib import Path
 from unittest.mock import Mock
 
 from bot import TelegramBot
+from markdown_converter import convert_markdown_to_html
 
 
 EXAMPLES = Path(__file__).with_name("examples")
 RICH_MESSAGE_CHARACTER_LIMIT = 32768
+INLINE_QUERY_CHARACTER_LIMIT = 256
 
 
 class BalancedHTMLParser(HTMLParser):
@@ -70,17 +72,17 @@ class RichMessageExamplesTest(unittest.TestCase):
         markdown = (EXAMPLES / "rich-markdown.md").read_text(encoding="utf-8")
 
         for syntax in (
-            "# Heading 1",
-            "- [x] completed task list item",
-            "| Header 1 | Header 2 |",
-            "[^id1]: Definition of the first footnote.",
+            "# Rich Markdown Example",
+            "- [x] completed task",
+            "| Name | Value |",
+            "[^note]: Footnote with *italic text*.",
             "$$E = mc^2$$",
             "<details open>",
-            "<tg-button-row",
+            "<tg-map ",
         ):
             with self.subTest(syntax=syntax):
                 self.assertIn(syntax, markdown)
-        self.assertEqual(markdown.count("```"), 4)
+        self.assertEqual(markdown.count("```"), 2)
 
     def test_html_example_is_balanced_and_covers_advanced_structures(self) -> None:
         html = (EXAMPLES / "rich-html.html").read_text(encoding="utf-8")
@@ -90,15 +92,33 @@ class RichMessageExamplesTest(unittest.TestCase):
         parser.close()
 
         for syntax in (
-            "<h1>Heading 1</h1>",
-            "<blockquote expandable>",
+            "<h1>Rich HTML Example</h1>",
+            "<blockquote>",
             "<table bordered striped compact>",
             "<tg-math-block>E = mc^2</tg-math-block>",
-            "<tg-document ",
-            "<tg-button-row",
+            "<details open>",
+            "<tg-map ",
         ):
             with self.subTest(syntax=syntax):
                 self.assertIn(syntax, html)
+
+    def test_inline_example_fits_query_limit_and_converts(self) -> None:
+        markdown = (EXAMPLES / "inline-markdown.md").read_text(encoding="utf-8")
+
+        self.assertLessEqual(len(markdown), INLINE_QUERY_CHARACTER_LIMIT)
+        self.assertIn("**bold**", markdown)
+        self.assertIn("[Telegram](https://telegram.org)", markdown)
+        converted = convert_markdown_to_html(markdown)
+        self.assertIn("<b>bold</b>", converted)
+        self.assertIn('<a href="https://telegram.org">Telegram</a>', converted)
+
+    def test_examples_do_not_contain_known_invalid_placeholders(self) -> None:
+        for path in EXAMPLES.iterdir():
+            content = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.name):
+                self.assertNotIn("telegram.org/example/", content)
+                self.assertNotIn("<tg-button", content)
+                self.assertNotIn("tg://emoji", content)
 
 
 if __name__ == "__main__":
